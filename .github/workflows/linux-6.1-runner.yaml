@@ -1,0 +1,47 @@
+name: Kernel-6.1 Runner
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  build:
+    permissions: write-all
+    name: kernel ncm6b runner
+    runs-on: self-hosted
+
+    steps:
+      - name: Clone and compile
+        run: |
+          cd /6tops/core/kernel-6.1
+          mkdir -p out
+          export ARCH=arm64
+          export CROSS_COMPILE=/6tops/core/debos/edgeaia/prebuilts/gcc/linux-x86/aarch64/gcc-arm-10.3-2021.07-x86_64-aarch64-none-linux-gnu/bin/aarch64-none-linux-gnu-
+          make rockchip_linux_defconfig gpu.config kconfig.config kconfig1.config
+          make dtbs Image -j 16
+          make modules -j 16
+          sudo make modules_install INSTALL_MOD_PATH=out
+
+      - name: Copy deb files and create archive
+        run: |
+          cd /6tops/core/kernel-6.1
+          mkdir -p linux-6.1 && mkdir -p dtb/rockchip && mkdir -p modules-6.1
+          cp -fv arch/arm64/boot/dts/rockchip/rk3588-edgeble-*.dtb dtb/rockchip
+          cp -fv arch/arm64/boot/dts/rockchip/rk3588-rock-5b.dtb dtb/rockchip
+          cp -frv arch/arm64/boot/Image dtb linux-6.1
+          tar -Jcf linux-6.1.tar.xz linux-6.1
+          cp -frv out/lib/modules/* modules-6.1
+          tar -Jcf modules-6.1.tar.xz modules-6.1
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: "v1.0"
+          body: |
+            - Fix USB3.0
+          files: |
+           /6tops/core/kernel-6.1/linux-6.1.tar.xz
+           /6tops/core/kernel-6.1/modules-6.1.tar.xz
+        env:
+           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
